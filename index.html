@@ -86,7 +86,7 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
 </main>
 <script>
 (() => {
-  const GIST = "956cc4f04b8c7e434b5005738ff8d8b5", OWNER = "thuytrinht4", FILE = "status.enc.json", POLL_MS = 90000;
+  const GIST = "956cc4f04b8c7e434b5005738ff8d8b5", OWNER = "thuytrinht4", FILE = "status.enc.json", POLL_MS = 20000;
   const $ = (id) => document.getElementById(id);
   const store = { get(k) { try { return localStorage.getItem("ts." + k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem("ts." + k, v); } catch (e) {} }, del(k) { try { localStorage.removeItem("ts." + k); } catch (e) {} } };
   const te = new TextEncoder(), bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)), b64 = (u) => btoa(String.fromCharCode(...u));
@@ -103,6 +103,12 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
   }
   async function fetchEnv() {
     if (!GIST) { const r = await fetch(FILE + "?t=" + Date.now(), { cache: "no-store" }); if (!r.ok) throw new Error("no data file (" + r.status + ")"); return r.text(); }
+    /* The gist's direct file link: no hourly limit (the API's is 60 an hour per network), and a unique query on every
+       request gets past its 5-minute cache: tested 2 Nov, fresh within about a minute of each upload */
+    try {
+      const raw = await fetch("https://gist.githubusercontent.com/" + OWNER + "/" + GIST + "/raw/" + FILE + "?t=" + Date.now(), { cache: "no-store", credentials: "omit" });
+      if (raw.ok) return raw.text();
+    } catch (e) { /* the API below */ }
     const r = await fetch("https://api.github.com/gists/" + GIST, { cache: "no-cache", credentials: "omit", headers: { Accept: "application/vnd.github+json" } });
     if (r.status === 403 || r.status === 429) throw new Error("GitHub's hourly limit for this network is used up; it resets within the hour");
     if (!r.ok) throw new Error("GitHub answered " + r.status);
@@ -200,7 +206,7 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       g.append(c);
     }
     renderPlan();
-    $("foot").textContent = "From " + (data.pc || "the PC") + ", every " + Math.round((data.every_s || 120) / 60) + " min (every minute with a trade on). Read only: this page can't change anything." + ((data.others || []).length ? " Also running, not in accounts.toml: " + data.others.length + "." : "");
+    $("foot").textContent = "From " + (data.pc || "the PC") + ": checked every " + (data.sweep_s || 15) + " s, uploaded every " + (data.every_s || 60) + " s (every " + (data.busy_s || 30) + " s with a trade or order on, and right after an order event); this page refreshes every " + POLL_MS / 1000 + " s. Read only: it can't change anything." + ((data.others || []).length ? " Also running, not in accounts.toml: " + data.others.length + "." : "");
   }
 
   /* The week plan: web\plan.json on the PC, sent inside the same encrypted file. A table row whose first cell names an
