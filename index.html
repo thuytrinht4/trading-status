@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.github.com https://gist.githubusercontent.com 'self'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Trading Status</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16181d;--mute:#5d6470;--line:#e2e5ea;--good:#137a3f;--goodbg:#e3f4ea;--bad:#b42318;--badbg:#fdecea;--warn:#8a5a00;--warnbg:#fff4d6;--info:#1d4ed8;--infobg:#e6eeff;--chip:#eef0f3}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#171a20;--ink:#e8eaee;--mute:#9aa3af;--line:#2a2f38;--good:#4ade80;--goodbg:#12301f;--bad:#f87171;--badbg:#3a1615;--warn:#fbbf24;--warnbg:#33270b;--info:#93b4ff;--infobg:#17223d;--chip:#232831}}
+:root[data-theme="dark"]{--bg:#0f1115;--card:#171a20;--ink:#e8eaee;--mute:#9aa3af;--line:#2a2f38;--good:#4ade80;--goodbg:#12301f;--bad:#f87171;--badbg:#3a1615;--warn:#fbbf24;--warnbg:#33270b;--info:#93b4ff;--infobg:#17223d;--chip:#232831}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:1180px;margin:0 auto;padding:16px 16px 48px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}
+h1{font-size:20px;margin:0;flex:1 1 auto}
+.age{color:var(--mute);font-size:13px}
+button{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--mute)}
+.banner{padding:10px 14px;border-radius:10px;margin:0 0 12px;font-weight:600}
+.banner.bad{background:var(--badbg);color:var(--bad)}.banner.warn{background:var(--warnbg);color:var(--warn)}.banner.good{background:var(--goodbg);color:var(--good)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile .k{color:var(--mute);font-size:12px}.tile .v{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums}
+.issues{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:12px}
+.issues h2{font-size:14px;margin:0 0 6px}.issues ul{margin:0;padding-left:18px}.issues li{margin:2px 0}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+.bar label{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mute)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.card.alert{border-color:var(--bad)}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.name{font-weight:650;font-size:16px}.login{color:var(--mute);font-size:12px;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--mute);font-weight:600}
+.chip.good{background:var(--goodbg);color:var(--good)}.chip.bad{background:var(--badbg);color:var(--bad)}.chip.warn{background:var(--warnbg);color:var(--warn)}.chip.info{background:var(--infobg);color:var(--info)}
+.strat{font-size:13px;color:var(--mute)}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;font-variant-numeric:tabular-nums}
+.nums div{font-size:12px;color:var(--mute)}.nums b{display:block;font-size:15px;color:var(--ink);font-weight:600}
+.pos{font-size:13px;border-top:1px dashed var(--line);padding-top:6px;font-variant-numeric:tabular-nums}
+.pos div{display:flex;justify-content:space-between;gap:8px}
+.note{font-size:12px;color:var(--mute);overflow-wrap:anywhere}
+.prob{font-size:13px;color:var(--bad);margin:0;padding-left:16px}
+.pl{font-weight:650}.up{color:var(--good)}.down{color:var(--bad)}
+#lock{max-width:380px;margin:12vh auto 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+#lock h1{margin-bottom:6px}#lock p{color:var(--mute);font-size:14px;margin:4px 0 14px}
+#lock input[type=password]{width:100%;font:inherit;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin-bottom:10px}
+#lock .row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--mute)}
+#lock .err{color:var(--bad);font-size:13px;min-height:18px;margin-top:8px}
+.hidden{display:none!important}
+footer{color:var(--mute);font-size:12px;margin-top:18px}
+</style>
+</head>
+<body>
+<div id="lock">
+  <h1>Trading Status</h1>
+  <p>Enter the passphrase. The data is encrypted on your PC and only decrypts in this browser.</p>
+  <input id="pass" type="password" autocomplete="current-password" placeholder="passphrase" aria-label="Passphrase">
+  <div class="row"><label><input id="remember" type="checkbox" checked> Remember on this device</label><button id="go">Open</button></div>
+  <div class="err" id="err"></div>
+</div>
+<main id="app" class="hidden">
+  <header><h1>Trading Status</h1><span class="age" id="age"></span><button id="refresh">Refresh</button><button id="lockbtn">Lock</button></header>
+  <div id="banner"></div>
+  <div class="tiles" id="tiles"></div>
+  <div id="issues"></div>
+  <div class="bar"><label><input type="checkbox" id="onlyIssues"> Only accounts that need you or have a trade on</label></div>
+  <div class="grid" id="grid"></div>
+  <footer id="foot"></footer>
+</main>
+<script>
+(() => {
+  const GIST = "956cc4f04b8c7e434b5005738ff8d8b5", OWNER = "thuytrinht4", FILE = "status.enc.json", POLL_MS = 60000;
+  const $ = (id) => document.getElementById(id);
+  const store = { get(k) { try { return localStorage.getItem("ts." + k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem("ts." + k, v); } catch (e) {} }, del(k) { try { localStorage.removeItem("ts." + k); } catch (e) {} } };
+  const te = new TextEncoder(), bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)), b64 = (u) => btoa(String.fromCharCode(...u));
+  let key = null, env = null, data = null, timer = null, lastText = "";
+
+  async function rawKey(pass, e) {
+    const base = await crypto.subtle.importKey("raw", te.encode(pass.trim().normalize("NFC")), "PBKDF2", false, ["deriveBits"]);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: bytes(e.salt), iterations: e.iter }, base, 256));
+  }
+  async function open(e, raw) {
+    const k = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes(e.iv), additionalData: te.encode("pp:" + e.name) }, k, bytes(e.ct));
+    return JSON.parse(await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream("gzip"))).text());
+  }
+  async function fetchEnv() {
+    if (!GIST) { const r = await fetch(FILE + "?t=" + Date.now(), { cache: "no-store" }); if (!r.ok) throw new Error("no data file (" + r.status + ")"); return r.text(); }
+    const r = await fetch("https://api.github.com/gists/" + GIST, { cache: "no-cache", credentials: "omit", headers: { Accept: "application/vnd.github+json" } });
+    if (r.status === 403 || r.status === 429) throw new Error("GitHub's hourly limit for this network is used up; it resets within the hour");
+    if (!r.ok) throw new Error("GitHub answered " + r.status);
+    const f = (await r.json()).files[FILE]; if (!f) throw new Error("the gist has no " + FILE);
+    if (!f.truncated) return f.content;
+    const raw = await fetch(f.raw_url, { cache: "no-store", credentials: "omit" }); return raw.text();
+  }
+  async function load(manual) {
+    try {
+      const text = await fetchEnv(); env = JSON.parse(text);
+      if (!key) { const saved = store.get("key." + env.salt); if (saved) key = bytes(saved); }
+      if (!key) { showLock(); return; }
+      if (text !== lastText || manual) { data = await open(env, key); lastText = text; }
+      showApp(); render();
+    } catch (x) {
+      if (x && x.name === "OperationError") { key = null; store.del("key." + (env && env.salt)); showLock("That passphrase doesn't open this data."); return; }
+      if (data) { render(String(x.message || x)); } else { showLock(); $("err").textContent = String(x.message || x); }
+    }
+  }
+  function showLock(msg) { $("lock").classList.remove("hidden"); $("app").classList.add("hidden"); $("err").textContent = msg || ""; $("pass").focus(); }
+  function showApp() { $("lock").classList.add("hidden"); $("app").classList.remove("hidden"); }
+  async function unlock() {
+    const pass = $("pass").value; if (!pass) return; $("err").textContent = "Opening...";
+    try {
+      if (!window.DecompressionStream || !crypto.subtle) throw new Error("This browser is too old: it needs Web Crypto and DecompressionStream.");
+      const text = env ? null : await fetchEnv(); if (text) env = JSON.parse(text);
+      const raw = await rawKey(pass, env); data = await open(env, raw); key = raw; lastText = "";
+      if ($("remember").checked) store.set("key." + env.salt, b64(raw)); $("pass").value = ""; $("err").textContent = ""; showApp(); render(); load();
+    } catch (x) { $("err").textContent = x && x.name === "OperationError" ? "That passphrase doesn't open this data." : String(x.message || x); }
+  }
+
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const money = (v, sign) => v === null || v === undefined ? "-" : (sign && v > 0 ? "+" : "") + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pl = (v) => { const s = el("span", "pl " + (v > 0 ? "up" : v < 0 ? "down" : ""), money(v, true)); return s; };
+  const ago = (s) => s < 90 ? Math.round(s) + " s ago" : s < 5400 ? Math.round(s / 60) + " min ago" : s < 172800 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " days ago";
+  function chip(text, cls) { return el("span", "chip " + (cls || ""), text); }
+  function render(fetchErr) {
+    if (!data) return;
+    const rows = data.rows || [], gen = new Date(data.generated_utc), age = (Date.now() - gen) / 1000;
+    $("age").textContent = "Updated " + gen.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }) + " (" + ago(age) + ")";
+    const b = $("banner"); b.textContent = ""; b.className = "";
+    if (age > (data.stale_after_s || 420)) { b.className = "banner bad"; b.textContent = "No update for " + ago(age).replace(" ago", "") + ": the PC, the internet there or the publisher is down. What you see is old."; }
+    else if (fetchErr) { b.className = "banner warn"; b.textContent = "Couldn't refresh: " + fetchErr; }
+    const live = rows.filter((r) => r.mode === "LIVE").length, dry = rows.filter((r) => r.mode === "DRY").length, algo = rows.filter((r) => r.algo).length, run = rows.filter((r) => r.terminal === "running").length;
+    const inTrade = rows.filter((r) => (r.open || []).length || (r.orders || []).length).length, probs = rows.filter((r) => (r.problems || []).length);
+    const sum = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+    const tiles = [["Accounts", rows.length], ["Running", run + " / " + rows.length], ["Live", live + (dry ? " (" + dry + " dry)" : "")], ["Algo on", algo + " / " + rows.length], ["In a trade", inTrade], ["Need you", probs.length],
+      ["Balance", money(sum("balance"))], ["Equity", money(sum("equity"))], ["Floating", pl(sum("floating"))], ["Today closed", pl(sum("today"))]];
+    const t = $("tiles"); t.textContent = "";
+    for (const [k, v] of tiles) { const d = el("div", "tile"); d.append(el("div", "k", k)); const vv = el("div", "v"); if (v instanceof Node) vv.append(v); else vv.textContent = v; d.append(vv); t.append(d); }
+    const is = $("issues"); is.textContent = "";
+    if (probs.length) { const box = el("div", "issues"); box.append(el("h2", "", probs.length + " need you")); const ul = el("ul"); for (const r of probs) ul.append(el("li", "", r.name + ": " + r.problems.join("; "))); box.append(ul); is.append(box); }
+    else if (age <= (data.stale_after_s || 420)) { const g = el("div", "banner good", "All " + rows.length + " accounts OK."); is.append(g); }
+    const only = $("onlyIssues").checked, g = $("grid"); g.textContent = "";
+    for (const r of rows) {
+      const busy = (r.open || []).length || (r.orders || []).length; if (only && !busy && !(r.problems || []).length) continue;
+      const c = el("div", "card" + ((r.problems || []).length ? " alert" : ""));
+      const top = el("div", "top"); top.append(el("span", "name", r.name), el("span", "login", r.login + (r.server ? " · " + r.server : ""))); c.append(top);
+      const ch = el("div", "chips");
+      if (r.terminal !== "running") ch.append(chip("CLOSED", "bad"));
+      else {
+        ch.append(r.mode === "LIVE" ? chip("LIVE", "good") : r.mode === "DRY" ? chip("DRY RUN", "warn") : chip("NO EA", "bad"));
+        ch.append(r.algo ? chip("Algo on", "good") : chip("Algo OFF", "bad"));
+        if (r.connected === false) ch.append(chip("not connected", "bad"));
+        if (r.held) ch.append(chip("HELD", "bad"));
+        ch.append(busy ? chip((r.open || []).length + " open" + ((r.orders || []).length ? ", " + r.orders.length + " pending" : ""), "info") : chip("flat"));
+      }
+      ch.append(chip(r.ea || "")); c.append(ch);
+      if (r.strategy) c.append(el("div", "strat", r.strategy));
+      const n = el("div", "nums");
+      const cell = (k, v) => { const d = el("div", "", k); const bb = el("b"); if (v instanceof Node) bb.append(v); else bb.textContent = v; d.append(bb); return d; };
+      n.append(cell("Balance", money(r.balance)), cell("Equity", money(r.equity)), cell("Today closed", r.today === null || r.today === undefined ? "-" : pl(r.today))); c.append(n);
+      if (busy) {
+        const p = el("div", "pos");
+        for (const o of r.open || []) { const d = el("div"); d.append(el("span", "", o.symbol + " " + o.side + " " + o.volume + " @ " + o.price + (o.sl ? " · SL " + o.sl : "") + (o.tp ? " · TP " + o.tp : ""))); d.append(pl(o.profit)); p.append(d); }
+        for (const o of r.orders || []) { const d = el("div"); d.append(el("span", "", o.symbol + " pending " + o.volume + " @ " + o.price + (o.sl ? " · SL " + o.sl : ""))); p.append(d); }
+        c.append(p);
+      }
+      if ((r.problems || []).length) { const ul = el("ul", "prob"); for (const x of r.problems) ul.append(el("li", "", x)); c.append(ul); }
+      if (r.note) c.append(el("div", "note", r.note));
+      g.append(c);
+    }
+    $("foot").textContent = "From " + (data.pc || "the PC") + ", every " + Math.round((data.every_s || 120) / 60) + " min (every minute with a trade on). Read only: this page can't change anything." + ((data.others || []).length ? " Also running, not in accounts.toml: " + data.others.length + "." : "");
+  }
+
+  $("go").onclick = unlock; $("pass").addEventListener("keydown", (e) => { if (e.key === "Enter") unlock(); });
+  $("refresh").onclick = () => load(true);
+  $("lockbtn").onclick = () => { if (env) store.del("key." + env.salt); key = null; data = null; lastText = ""; showLock(); };
+  $("onlyIssues").onchange = () => { store.set("only", $("onlyIssues").checked ? "1" : ""); render(); };
+  $("onlyIssues").checked = store.get("only") === "1";
+  const tick = () => { if (!document.hidden) load(); };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+  setInterval(tick, POLL_MS); setInterval(() => render(), 15000); load();
+})();
+</script>
+</body>
+</html>
