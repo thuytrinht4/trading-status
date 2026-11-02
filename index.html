@@ -134,8 +134,12 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     const live = rows.filter((r) => r.mode === "LIVE").length, dry = rows.filter((r) => r.mode === "DRY").length, algo = rows.filter((r) => r.algo).length, run = rows.filter((r) => r.terminal === "running").length;
     const inTrade = rows.filter((r) => (r.open || []).length || (r.orders || []).length).length, probs = rows.filter((r) => (r.problems || []).length);
     const sum = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+    const all = rows.flatMap((r) => r.open || []), noStop = all.filter((o) => o.sl_pl === null || o.sl_pl === undefined).length;
+    const tsum = (k) => all.reduce((a, o) => a + (Number(o[k]) || 0), 0);
     const tiles = [["Accounts", rows.length], ["Running", run + " / " + rows.length], ["Live", live + (dry ? " (" + dry + " dry)" : "")], ["Algo on", algo + " / " + rows.length], ["In a trade", inTrade], ["Need you", probs.length],
-      ["Balance", money(sum("balance"))], ["Equity", money(sum("equity"))], ["Floating", pl(sum("floating"))], ["Today closed", pl(sum("today"))]];
+      ["Balance", money(sum("balance"))], ["Equity", money(sum("equity"))], ["Floating", pl(sum("floating"))], ["Today closed", pl(sum("today"))],
+      ["Equity at risk now", all.length ? money(tsum("at_risk")) + (noStop ? " + " + noStop + " with no stop" : "") : "-"],
+      ["If all stops hit", all.length ? pl(tsum("sl_pl")) : "-"], ["If all targets hit", all.length ? pl(tsum("tp_pl")) : "-"]];
     const t = $("tiles"); t.textContent = "";
     for (const [k, v] of tiles) { const d = el("div", "tile"); d.append(el("div", "k", k)); const vv = el("div", "v"); if (v instanceof Node) vv.append(v); else vv.textContent = v; d.append(vv); t.append(d); }
     const is = $("issues"); is.textContent = "";
@@ -160,10 +164,20 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       const n = el("div", "nums");
       const cell = (k, v) => { const d = el("div", "", k); const bb = el("b"); if (v instanceof Node) bb.append(v); else bb.textContent = v; d.append(bb); return d; };
       n.append(cell("Balance", money(r.balance)), cell("Equity", money(r.equity)), cell("Today closed", r.today === null || r.today === undefined ? "-" : pl(r.today))); c.append(n);
+      const op = r.open || [], pct = (v) => r.balance ? " (" + (100 * v / r.balance).toFixed(2) + "%)" : "";
+      if (op.length) {
+        const s = (k) => op.reduce((a, o) => a + (Number(o[k]) || 0), 0), bare = op.some((o) => o.sl_pl === null || o.sl_pl === undefined);
+        const n2 = el("div", "nums");
+        n2.append(cell("At risk now", bare ? chip("NO STOP", "bad") : money(s("at_risk")) + pct(s("at_risk"))), cell("If stop hit", bare ? "-" : pl(s("sl_pl"))), cell("If target hit", pl(s("tp_pl"))));
+        c.append(n2);
+      }
       if (busy) {
         const p = el("div", "pos");
-        for (const o of r.open || []) { const d = el("div"); d.append(el("span", "", o.symbol + " " + o.side + " " + o.volume + " @ " + o.price + (o.sl ? " · SL " + o.sl : "") + (o.tp ? " · TP " + o.tp : ""))); d.append(pl(o.profit)); p.append(d); }
-        for (const o of r.orders || []) { const d = el("div"); d.append(el("span", "", o.symbol + " pending " + o.volume + " @ " + o.price + (o.sl ? " · SL " + o.sl : ""))); p.append(d); }
+        for (const o of op) {
+          const d = el("div"); d.append(el("span", "", o.symbol + " " + o.side + " " + o.volume + " @ " + o.price + (o.sl ? " · SL " + o.sl : " · NO STOP") + (o.tp ? " · TP " + o.tp : ""))); d.append(pl(o.profit)); p.append(d);
+          const m = el("div", "note"); m.textContent = "stop " + (o.sl_pl === null || o.sl_pl === undefined ? "none" : money(o.sl_pl, true)) + " · target " + (o.tp_pl === null || o.tp_pl === undefined ? "none" : money(o.tp_pl, true)) + (o.at_risk === null || o.at_risk === undefined ? "" : " · at risk now " + money(o.at_risk)); p.append(m);
+        }
+        for (const o of r.orders || []) { const d = el("div"); d.append(el("span", "", o.symbol + " pending " + o.volume + " @ " + o.price + (o.sl ? " · SL " + o.sl : "") + (o.tp ? " · TP " + o.tp : ""))); if (o.sl_pl !== null && o.sl_pl !== undefined) d.append(el("span", "note", "if filled: stop " + money(o.sl_pl, true) + (o.tp_pl ? " / target " + money(o.tp_pl, true) : ""))); p.append(d); }
         c.append(p);
       }
       if ((r.problems || []).length) { const ul = el("ul", "prob"); for (const x of r.problems) ul.append(el("li", "", x)); c.append(ul); }
