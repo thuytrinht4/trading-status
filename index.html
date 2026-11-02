@@ -71,7 +71,7 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
 </main>
 <script>
 (() => {
-  const GIST = "956cc4f04b8c7e434b5005738ff8d8b5", OWNER = "thuytrinht4", FILE = "status.enc.json", POLL_MS = 60000;
+  const GIST = "956cc4f04b8c7e434b5005738ff8d8b5", OWNER = "thuytrinht4", FILE = "status.enc.json", POLL_MS = 90000;
   const $ = (id) => document.getElementById(id);
   const store = { get(k) { try { return localStorage.getItem("ts." + k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem("ts." + k, v); } catch (e) {} }, del(k) { try { localStorage.removeItem("ts." + k); } catch (e) {} } };
   const te = new TextEncoder(), bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)), b64 = (u) => btoa(String.fromCharCode(...u));
