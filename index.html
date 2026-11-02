@@ -49,6 +49,17 @@ button:hover{border-color:var(--mute)}
 #lock .row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--mute)}
 #lock .err{color:var(--bad);font-size:13px;min-height:18px;margin-top:8px}
 .hidden{display:none!important}
+.tabs{display:flex;gap:6px;margin:0 0 12px;border-bottom:1px solid var(--line)}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 12px;font-size:14px;font-weight:600;color:var(--mute)}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}
+.plan h2{font-size:17px;margin:22px 0 6px}.plan p{margin:6px 0;max-width:80ch}.plan .lead p{font-size:15px}
+.plan .meta{color:var(--mute);font-size:12px}
+.tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;margin:8px 0}
+.tw table{border-collapse:collapse;width:100%;font-size:13px}
+.tw th,.tw td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tw th{color:var(--mute);font-weight:600;white-space:nowrap}.tw tr:last-child td{border-bottom:0}
+.tw td.now{white-space:nowrap;font-variant-numeric:tabular-nums}
+.plan ul{padding-left:18px;max-width:80ch}
 footer{color:var(--mute);font-size:12px;margin-top:18px}
 </style>
 </head>
@@ -63,10 +74,14 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
 <main id="app" class="hidden">
   <header><h1>Trading Status</h1><span class="age" id="age"></span><button id="refresh">Refresh</button><button id="lockbtn">Lock</button></header>
   <div id="banner"></div>
+  <nav class="tabs" role="tablist"><button id="tabStatus" role="tab" aria-selected="true">Status</button><button id="tabPlan" role="tab" aria-selected="false">Week plan</button></nav>
+  <section id="viewStatus">
   <div class="tiles" id="tiles"></div>
   <div id="issues"></div>
   <div class="bar"><label><input type="checkbox" id="onlyIssues"> Only accounts that need you or have a trade on</label></div>
   <div class="grid" id="grid"></div>
+  </section>
+  <section id="viewPlan" class="plan hidden"></section>
   <footer id="foot"></footer>
 </main>
 <script>
@@ -184,8 +199,57 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       if (r.note) c.append(el("div", "note", r.note));
       g.append(c);
     }
+    renderPlan();
     $("foot").textContent = "From " + (data.pc || "the PC") + ", every " + Math.round((data.every_s || 120) / 60) + " min (every minute with a trade on). Read only: this page can't change anything." + ((data.others || []).length ? " Also running, not in accounts.toml: " + data.others.length + "." : "");
   }
+
+  /* The week plan: web\plan.json on the PC, sent inside the same encrypted file. A table row whose first cell names an
+     account gets that account's live figures from this snapshot, so the plan reads against where each account is now. */
+  function renderPlan() {
+    const v = $("viewPlan"); v.textContent = ""; const P = data && data.plan;
+    if (!P) { v.append(el("p", "", "No plan in this upload yet.")); return; }
+    const byName = {}; for (const r of data.rows || []) byName[r.name] = r;
+    v.append(el("h2", "", P.title || "Week plan")); if (P.updated) v.append(el("div", "meta", "Plan written " + P.updated + " · live figures from the latest upload"));
+    const lead = el("div", "lead"); for (const t of P.lead || []) lead.append(el("p", "", t)); v.append(lead);
+    for (const s of P.sections || []) {
+      v.append(el("h2", "", s.title || ""));
+      for (const t of s.text || []) v.append(el("p", "", t));
+      if (s.table) {
+        const live = (s.table.rows || []).some((row) => byName[row[0]]);
+        const w = el("div", "tw"), tb = el("table"), hr = el("tr");
+        for (const c of s.table.cols || []) hr.append(el("th", "", c));
+        if (live) hr.append(el("th", "", "Now"));
+        tb.append(hr);
+        for (const row of s.table.rows || []) {
+          const tr = el("tr"); for (const c of row) tr.append(el("td", "", c));
+          const r = byName[row[0]];
+          if (live) {
+            const td = el("td", "now");
+            if (r) {
+              const top = el("div"); top.append(r.terminal !== "running" ? chip("CLOSED", "bad") : r.mode === "LIVE" ? chip("LIVE", "good") : r.mode === "DRY" ? chip("DRY", "warn") : chip("NO EA", "bad"));
+              const op = r.open || []; if (op.length) top.append(" ", chip(op.length + " open", "info"));
+              td.append(top, el("div", "", "bal " + money(r.balance)));
+              const fl = op.reduce((a, o) => a + (Number(o.profit) || 0), 0);
+              const d2 = el("div"); d2.append("open "); d2.append(op.length ? pl(fl) : el("span", "", "-")); d2.append(" · today "); d2.append(r.today === null || r.today === undefined ? el("span", "", "-") : pl(r.today)); td.append(d2);
+              if ((r.problems || []).length) td.append(el("div", "pl down", r.problems[0]));
+            }
+            tr.append(td);
+          }
+          tb.append(tr);
+        }
+        w.append(tb); v.append(w);
+      }
+      if (s.list) { const ul = el("ul"); for (const t of s.list) ul.append(el("li", "", t)); v.append(ul); }
+      for (const t of s.after || []) v.append(el("p", "", t));
+    }
+  }
+  function showTab(plan) {
+    $("viewPlan").classList.toggle("hidden", !plan); $("viewStatus").classList.toggle("hidden", plan);
+    $("tabPlan").setAttribute("aria-selected", plan ? "true" : "false"); $("tabStatus").setAttribute("aria-selected", plan ? "false" : "true");
+    store.set("tab", plan ? "plan" : "status");
+  }
+  $("tabStatus").onclick = () => showTab(false); $("tabPlan").onclick = () => showTab(true);
+  if (store.get("tab") === "plan" || location.hash === "#plan") showTab(true);
 
   $("go").onclick = unlock; $("pass").addEventListener("keydown", (e) => { if (e.key === "Enter") unlock(); });
   $("refresh").onclick = () => load(true);
