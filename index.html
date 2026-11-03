@@ -74,13 +74,14 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
 <main id="app" class="hidden">
   <header><h1>Trading Status</h1><span class="age" id="age"></span><button id="refresh">Refresh</button><button id="lockbtn">Lock</button></header>
   <div id="banner"></div>
-  <nav class="tabs" role="tablist"><button id="tabStatus" role="tab" aria-selected="true">Status</button><button id="tabPlan" role="tab" aria-selected="false">Week plan</button></nav>
+  <nav class="tabs" role="tablist"><button id="tabStatus" role="tab" aria-selected="true">Status</button><button id="tabToday" role="tab" aria-selected="false">Today</button><button id="tabPlan" role="tab" aria-selected="false">Week plan</button></nav>
   <section id="viewStatus">
   <div class="tiles" id="tiles"></div>
   <div id="issues"></div>
   <div class="bar"><label><input type="checkbox" id="onlyIssues"> Only accounts that need you or have a trade on</label></div>
   <div class="grid" id="grid"></div>
   </section>
+  <section id="viewToday" class="plan hidden"></section>
   <section id="viewPlan" class="plan hidden"></section>
   <footer id="foot"></footer>
 </main>
@@ -205,17 +206,20 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       if (r.note) c.append(el("div", "note", r.note));
       g.append(c);
     }
-    renderPlan();
+    renderDoc("viewToday", data.today, "Today", "No day plan in this upload yet: today_plan.py writes it at 07:00 UTC on weekdays.", "Written ");
+    renderDoc("viewPlan", data.plan, "Week plan", "No plan in this upload yet.", "Plan written ");
     $("foot").textContent = "From " + (data.pc || "the PC") + ": checked every " + (data.sweep_s || 15) + " s, uploaded every " + (data.every_s || 60) + " s (every " + (data.busy_s || 30) + " s with a trade or order on, and right after an order event); this page refreshes every " + POLL_MS / 1000 + " s. Read only: it can't change anything." + ((data.others || []).length ? " Also running, not in accounts.toml: " + data.others.length + "." : "");
   }
 
-  /* The week plan: web\plan.json on the PC, sent inside the same encrypted file. A table row whose first cell names an
-     account gets that account's live figures from this snapshot, so the plan reads against where each account is now. */
-  function renderPlan() {
-    const v = $("viewPlan"); v.textContent = ""; const P = data && data.plan;
-    if (!P) { v.append(el("p", "", "No plan in this upload yet.")); return; }
+  /* The week plan (web\plan.json) and the day plan (web\today.json, written by today_plan.py) on the PC, sent inside the
+     same encrypted file. A table row whose first cell names an account gets that account's live figures from this
+     snapshot, so the plan reads against where each account is now. */
+  function renderDoc(view, P, fallback, empty, written) {
+    const v = $(view); v.textContent = "";
+    if (!P) { v.append(el("p", "", empty)); return; }
     const byName = {}; for (const r of data.rows || []) byName[r.name] = r;
-    v.append(el("h2", "", P.title || "Week plan")); if (P.updated) v.append(el("div", "meta", "Plan written " + P.updated + " · live figures from the latest upload"));
+    v.append(el("h2", "", P.title || fallback)); if (P.updated) v.append(el("div", "meta", written + P.updated + " · live figures from the latest upload"));
+    if (P.date && P.date !== new Date().toISOString().slice(0, 10)) v.append(el("p", "pl down", "This is the plan for " + P.date + ", not today (UTC): the 07:00 UTC run hasn't written today's yet."));
     const lead = el("div", "lead"); for (const t of P.lead || []) lead.append(el("p", "", t)); v.append(lead);
     for (const s of P.sections || []) {
       v.append(el("h2", "", s.title || ""));
@@ -249,13 +253,13 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       for (const t of s.after || []) v.append(el("p", "", t));
     }
   }
-  function showTab(plan) {
-    $("viewPlan").classList.toggle("hidden", !plan); $("viewStatus").classList.toggle("hidden", plan);
-    $("tabPlan").setAttribute("aria-selected", plan ? "true" : "false"); $("tabStatus").setAttribute("aria-selected", plan ? "false" : "true");
-    store.set("tab", plan ? "plan" : "status");
+  const TABS = { status: ["tabStatus", "viewStatus"], today: ["tabToday", "viewToday"], plan: ["tabPlan", "viewPlan"] };
+  function showTab(name) {
+    for (const [k, [b, s]] of Object.entries(TABS)) { $(s).classList.toggle("hidden", k !== name); $(b).setAttribute("aria-selected", k === name ? "true" : "false"); }
+    store.set("tab", name);
   }
-  $("tabStatus").onclick = () => showTab(false); $("tabPlan").onclick = () => showTab(true);
-  if (store.get("tab") === "plan" || location.hash === "#plan") showTab(true);
+  for (const k of Object.keys(TABS)) $(TABS[k][0]).onclick = () => showTab(k);
+  { const h = location.hash.slice(1), t = TABS[h] ? h : store.get("tab"); if (TABS[t]) showTab(t); }
 
   $("go").onclick = unlock; $("pass").addEventListener("keydown", (e) => { if (e.key === "Enter") unlock(); });
   $("refresh").onclick = () => load(true);
