@@ -272,7 +272,11 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     if (!P) { v.append(el("p", "", empty)); return; }
     const byName = {}; for (const r of data.rows || []) byName[r.name] = r;
     v.append(el("h2", "", P.title || fallback)); if (P.updated) v.append(el("div", "meta", written + P.updated + " · live figures from the latest upload"));
-    if (P.date && P.date !== new Date().toISOString().slice(0, 10)) v.append(el("p", "pl down", "This is the plan for " + P.date + ", not today (UTC): the 07:00 UTC run hasn't written today's yet."));
+    const dow = new Date().getUTCDay();
+    if (P.date && P.date !== new Date().toISOString().slice(0, 10)) {
+      if (dow === 0 || dow === 6) v.append(el("p", "meta", "Markets are closed for the weekend: this is the last trading day's plan (" + P.date + "). Monday's is written at 07:00 UTC Monday."));
+      else v.append(el("p", "pl down", "This is the plan for " + P.date + ", not today (UTC): the 07:00 UTC run hasn't written today's yet."));
+    }
     const lead = el("div", "lead"); for (const t of P.lead || []) lead.append(el("p", "", t)); v.append(lead);
     for (const s of P.sections || []) {
       v.append(el("h2", "", s.title || ""));
