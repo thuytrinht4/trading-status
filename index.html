@@ -294,8 +294,19 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       ["Balance", money(sum("balance"))], ["Equity", money(sum("equity"))], ["Floating", pl(sum("floating"))], ["Today closed", pl(sum("today"))],
       ["Equity at risk now", all.length ? money(tsum("at_risk")) + (noStop ? " + " + noStop + " with no stop" : "") : "-"],
       ["If all stops hit", all.length ? pl(tsum("sl_pl")) : "-"], ["If all targets hit", all.length ? pl(tsum("tp_pl")) : "-"]];
+    /* Capital and P&L by stage, each account once (a second chart on an account carries none of its money). Net P&L is equity
+       against the starting balance (the first deposit in the account's history; its size until that's read). */
+    const book = rows.filter((r) => !r.same_as), cash = (v) => "$" + (Math.abs(v) >= 1000 ? (v / 1000).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "K" : Math.round(v));
+    for (const [st, nm] of [["funded", "Funded"], ["evaluation", "Evaluation"]]) {
+      const g = book.filter((r) => r.stage === st), known = g.filter((r) => r.equity !== null && r.equity !== undefined);
+      const npl = known.reduce((a, r) => a + r.equity - (r.start_balance || r.size || r.equity), 0), base = known.reduce((a, r) => a + (r.start_balance || r.size || 0), 0);
+      const plv = el("span", "pl " + (npl > 0 ? "up" : npl < 0 ? "down" : ""), (npl > 0 ? "+" : npl < 0 ? "−" : "") + cash(Math.abs(npl)));
+      tiles.unshift([nm + " capital", cash(g.reduce((a, r) => a + (r.size || 0), 0)), g.length + " account" + (g.length === 1 ? "" : "s")],
+                    ["Net P&L (" + nm.toLowerCase() + ")", plv, (base ? (npl >= 0 ? "+" : "−") + Math.abs(100 * npl / base).toFixed(2) + "% · " : "") + "vs starting balance" + (known.length < g.length ? " · " + (g.length - known.length) + " not read" : "")]);
+    }
+    tiles.unshift(...tiles.splice(0, 4).sort((x, y) => ["Funded capital", "Evaluation capital", "Net P&L (funded)", "Net P&L (evaluation)"].indexOf(x[0]) - ["Funded capital", "Evaluation capital", "Net P&L (funded)", "Net P&L (evaluation)"].indexOf(y[0])));
     const t = $("tiles"); t.textContent = "";
-    for (const [k, v] of tiles) { const d = el("div", "tile"); d.append(el("div", "k", k)); const vv = el("div", "v"); if (v instanceof Node) vv.append(v); else vv.textContent = v; d.append(vv); t.append(d); }
+    for (const [k, v, sub] of tiles) { const d = el("div", "tile"); d.append(el("div", "k", k)); const vv = el("div", "v"); if (v instanceof Node) vv.append(v); else vv.textContent = v; d.append(vv); if (sub) d.append(el("div", "k", sub)); t.append(d); }
     const is = $("issues"); is.textContent = "";
     if (probs.length) { const box = el("div", "issues"); box.append(el("h2", "", probs.length + " need you")); const ul = el("ul"); for (const r of probs) ul.append(el("li", "", r.name + ": " + r.problems.join("; "))); box.append(ul); is.append(box); }
     else if (age <= (data.stale_after_s || 420)) { const g = el("div", "banner good", "All " + rows.length + " accounts OK."); is.append(g); }
