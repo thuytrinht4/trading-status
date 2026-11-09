@@ -290,8 +290,11 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     const all = rows.flatMap((r) => r.open || []), noStop = all.filter((o) => o.sl_pl === null || o.sl_pl === undefined).length;
     const tsum = (k) => all.reduce((a, o) => a + (Number(o[k]) || 0), 0);
     const accts = rows.filter((r) => !r.same_as).length;
-    const tiles = [["Accounts", accts + (accts !== rows.length ? " (" + rows.length + " charts)" : "")], ["Running", run + " / " + rows.length], ["Live", live + (dry ? " (" + dry + " dry)" : "")], ["Algo on", algo + " / " + rows.length], ["In a trade", inTrade], ["Need you", probs.length],
-      ["Balance", money(sum("balance"))], ["Equity", money(sum("equity"))], ["Floating", pl(sum("floating"))], ["Today closed", pl(sum("today"))],
+    const needs = el("span", probs.length ? "pl down" : "", inTrade + " / " + probs.length);
+    const tiles = [["Running", run + " / " + rows.length, rows.length !== accts ? accts + " accounts on " + rows.length + " charts" : ""],
+      ["Live / Algo on", live + " / " + algo, (dry ? dry + " dry · " : "") + "of " + rows.length + " charts"],
+      ["In a trade / need you", needs, probs.length ? probs.length + " need you: see below" : "nothing needs you"],
+      ["Floating", pl(sum("floating"))], ["Today closed", pl(sum("today"))],
       ["Equity at risk now", all.length ? money(tsum("at_risk")) + (noStop ? " + " + noStop + " with no stop" : "") : "-"],
       ["If all stops hit", all.length ? pl(tsum("sl_pl")) : "-"], ["If all targets hit", all.length ? pl(tsum("tp_pl")) : "-"]];
     /* Capital and P&L by stage, each account once (a second chart on an account carries none of its money). Net P&L is equity
