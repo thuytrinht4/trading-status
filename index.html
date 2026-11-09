@@ -107,17 +107,20 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       <label class="pfCustom hidden">From <input type="date" id="pfFrom"></label>
       <label class="pfCustom hidden">To <input type="date" id="pfTo"></label>
       <label>Accounts <select id="pfAcct"></select></label>
+      <label>Market <select id="pfMkt"><option value="">All markets</option><option value="Gold">Gold</option><option value="idx">All indices</option><option value="NASDAQ">NASDAQ</option><option value="S&amp;P 500">S&amp;P 500</option></select></label>
       <span class="rng" id="pfRange"></span>
     </div>
     <p class="lede" id="pfLede"></p>
     <div class="tiles" id="pfTiles"></div>
+    <div class="sec" style="margin:0 0 12px"><h3>Gold vs index</h3><p class="sub">Each market's closed P&amp;L over the period on the selected accounts: gold is the REGIME C breakout, the indices the NASDAQ 11:00 rule and its S&amp;P legs.</p>
+      <div class="chartc" style="margin-bottom:8px"><h3>Cumulative P&amp;L by market</h3><p class="sub">One line a market, added up over the period's trading days.</p><div id="pfMktCum"></div></div>
+      <div class="tw" id="pfMktTbl" style="margin:0"></div></div>
     <div class="charts">
       <div class="chartc"><h3>Cumulative P&amp;L</h3><p class="sub">Closed P&amp;L added up over the period's trading days.</p><div id="pfCum"></div></div>
       <div class="chartc"><h3>P&amp;L per day</h3><p class="sub">Each trading day's closed P&amp;L on the selected accounts.</p><div id="pfDay"></div></div>
     </div>
     <div class="sec"><h3>By account</h3><p class="sub">The period beside each account's whole record. Return since start = balance now against the starting balance.</p><div class="tw" id="pfAccts"></div></div>
     <div class="charts" style="margin-top:12px">
-      <div class="sec" style="margin:0"><h3>By market</h3><p class="sub">Gold (REGIME C) against the index legs, in the period.</p><div class="tw" id="pfLegs"></div></div>
       <div class="sec" style="margin:0"><h3>Opened by</h3><p class="sub">The EAs against trades opened by hand, in the period.</p><div class="tw" id="pfBy"></div></div>
     </div>
     <div class="sec"><h3>Closed trades</h3><p class="sub" id="pfTradeSub"></p>
@@ -483,6 +486,46 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     for (const r of rows) { const tr = el("tr"); r.forEach((v, i) => { const td = el("td", (numeric[i] ? "r" : "") + (cols[i].hn ? " hn" : "")); if (v instanceof Node) td.append(v); else td.textContent = v; tr.append(td); }); tb.append(tr); }
     box.append(tb);
   }
+  /* Gold vs index: one line a market on one cumulative chart, and a side-by-side table with an all-indices row. */
+  const IDX = ["NASDAQ", "S&P 500"], MKCOL = { Gold: "#c99a06", NASDAQ: "#2563eb", "S&P 500": "#9333ea" };
+  function marketView(cur, R) {
+    const legs = [...new Set(cur.map((t) => t.leg))].sort((a, b) => (a === "Gold" ? -1 : b === "Gold" ? 1 : a.localeCompare(b)));
+    const total = cur.reduce((a, t) => a + t.net, 0), days = [];
+    for (let d = D(R.a); d <= D(R.b); d = addD(d, 1)) { const w = d.getUTCDay(); if (w !== 0 && w !== 6) days.push(iso(d)); }
+    const lines = legs.map((lg) => { let c = 0; const by = {}; for (const t of cur) if (t.leg === lg) by[t.day] = (by[t.day] || 0) + t.net; return { lg, pts: days.map((d) => (c += by[d] || 0)) }; });
+    const box = $("pfMktCum"); box.textContent = "";
+    if (!cur.length || !days.length) box.append(el("p", "sub", "No trades closed in this period."));
+    else {
+      const W = Math.max(300, box.clientWidth || 420), H = 220, vals = lines.flatMap((l) => l.pts);
+      let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals); if (lo === hi) hi = lo + 1; const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+      const lbl = (v) => (v < 0 ? "−$" : "$") + (Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(Math.abs(v) >= 10000 ? 0 : 1) + "k" : Math.round(Math.abs(v)));
+      const ends = lines.map((l) => l.lg + " " + sgn(l.pts[l.pts.length - 1])), Rw = 12 + 6.6 * Math.max(...ends.map((s) => s.length));
+      const ticks = [lo, (lo + hi) / 2, hi, 0], L = 8 + 7 * Math.max(...ticks.map((v) => lbl(v).length)), T = 10, B = 22;
+      const x = (i) => L + (days.length === 1 ? (W - L - Rw) / 2 : (i * (W - L - Rw)) / (days.length - 1)), y = (v) => T + ((hi - v) * (H - T - B)) / (hi - lo);
+      const s = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" }, box);
+      for (const v of ticks) { svgEl("line", { x1: L, x2: W - Rw, y1: y(v), y2: y(v), stroke: "var(--line)", "stroke-width": v === 0 ? 1.5 : 1 }, s); const tx = svgEl("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }, s); tx.textContent = lbl(v); }
+      const every = Math.max(1, Math.ceil(days.length / 6));
+      days.forEach((d, i) => { if (i % every) return; const tx = svgEl("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, s); tx.textContent = D(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }); });
+      const placed = [];
+      lines.forEach((l) => {
+        const col = MKCOL[l.lg] || "var(--mute)";
+        svgEl("path", { d: l.pts.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join(""), fill: "none", stroke: col, "stroke-width": 2.2, "stroke-linejoin": "round", "stroke-linecap": "round" }, s);
+        l.pts.forEach((v, i) => { const c = svgEl("circle", { cx: x(i), cy: y(v), r: 5, fill: "transparent" }, s); svgEl("title", {}, c).textContent = `${l.lg}, ${fday(days[i])}: running total ${sgn(v)}`; });
+        let ly = y(l.pts[l.pts.length - 1]) + 4; while (placed.some((p) => Math.abs(p - ly) < 13)) ly += 13; placed.push(ly);
+        const tx = svgEl("text", { x: W - Rw + 6, y: ly, "font-weight": 600 }, s); tx.style.fill = col; tx.textContent = l.lg + " " + sgn(l.pts[l.pts.length - 1]);
+      });
+    }
+    const stats = (v) => {
+      const w = v.filter((t) => t.net > 0), lsn = v.filter((t) => t.net < 0), gw = w.reduce((a, t) => a + t.net, 0), gl = -lsn.reduce((a, t) => a + t.net, 0), net = gw - gl;
+      const best = v.reduce((m, t) => Math.max(m, t.net), -Infinity), worst = v.reduce((m, t) => Math.min(m, t.net), Infinity);
+      return [String(v.length), v.length ? Math.round((100 * w.length) / v.length) + "%" : "-", colored("span", net, sgn(net)), v.length ? colored("span", net, sgn(net / v.length)) : "-",
+              w.length ? sgn(gw / w.length) : "-", lsn.length ? sgn(-gl / lsn.length) : "-", gl ? (gw / gl).toFixed(2) : w.length ? "no losses" : "-",
+              v.length ? colored("span", best, sgn(best)) : "-", v.length ? colored("span", worst, sgn(worst)) : "-", total ? Math.round((100 * net) / Math.abs(total)) + "%" : "-"];
+    };
+    const rows = legs.map((lg) => { const n = el("span", "", "● "); n.style.color = MKCOL[lg] || "inherit"; const c = el("span"); c.append(n, lg); return [c, ...stats(cur.filter((t) => t.leg === lg))]; });
+    const ix = cur.filter((t) => IDX.includes(t.leg)); if (legs.filter((l) => IDX.includes(l)).length > 1) rows.push([el("b", "", "All indices"), ...stats(ix)]);
+    table($("pfMktTbl"), ["Market", "Trades", "Won", "Net", "Average a trade", { t: "Average win", hn: 1 }, { t: "Average loss", hn: 1 }, { t: "Profit factor", hn: 1 }, { t: "Best trade", hn: 1 }, { t: "Worst trade", hn: 1 }, { t: "Share of net", hn: 1 }], rows, [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+  }
   function renderPerf() {
     const accts = pfAccounts(), sel = $("pfAcct");
     if (!accts.length) { $("pfLede").textContent = "No trade history in this upload yet: it arrives with the next upload from the PC."; return; }
@@ -492,7 +535,8 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     document.querySelectorAll(".pfCustom").forEach((l) => l.classList.toggle("hidden", $("pfPeriod").value !== "custom"));
     const minDay = accts.map((r) => r.start).filter(Boolean).sort()[0];
     const R = pfRange(minDay), keep = pfPicked(accts), mine = accts.filter((r) => keep.has(r.name));
-    const all = mine.flatMap((r) => r.closed.map((t) => Object.assign({ account: r.name }, t)));
+    const mk = $("pfMkt").value, inMkt = (t) => !mk || (mk === "idx" ? IDX.includes(t.leg) : t.leg === mk);
+    const all = mine.flatMap((r) => r.closed.map((t) => Object.assign({ account: r.name }, t))).filter(inMkt);
     const cur = all.filter((t) => t.day >= R.a && t.day <= R.b), prev = all.filter((t) => t.day >= R.pa && t.day <= R.pb);
     const sum = (v) => v.reduce((a, t) => a + t.net, 0), net = sum(cur), wins = cur.filter((t) => t.net > 0).length;
     const cap = mine.filter((r) => (r.start || "") <= R.b).reduce((a, r) => a + (r.start_balance || 0), 0);
@@ -520,7 +564,7 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     });
     table($("pfAccts"), ["Account", { t: "Type", hn: 1 }, "Trades", "Won", "Net in period", { t: "Net since start", hn: 1 }, "Balance", "Return since start"], arows, [0, 0, 1, 1, 1, 1, 1, 1]);
     const group = (f) => { const g = {}; for (const t of cur) { const k = f(t), p = (g[k] = g[k] || { n: 0, w: 0, net: 0 }); p.n++; p.w += t.net > 0; p.net += t.net; } return Object.entries(g).sort((a, b) => b[1].n - a[1].n).map(([k, p]) => [k, String(p.n), Math.round((100 * p.w) / p.n) + "%", colored("span", p.net, sgn(p.net)), colored("span", p.net, sgn(p.net / p.n))]); };
-    table($("pfLegs"), ["Market", "Trades", "Won", "Net", "Average a trade"], group((t) => t.leg), [0, 1, 1, 1, 1]);
+    marketView(cur, R);
     table($("pfBy"), ["Opened by", "Trades", "Won", "Net", "Average a trade"], group((t) => (t.by === "hand" ? "By hand" : "An EA")), [0, 1, 1, 1, 1]);
     const q = $("pfSearch").value.trim().toLowerCase();
     const list = cur.filter((t) => !q || `${t.account} ${t.symbol} ${t.leg} ${t.side} ${t.how} ${t.by}`.toLowerCase().includes(q)).sort((a, b) => b.close_utc.localeCompare(a.close_utc));
@@ -528,9 +572,9 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     table($("pfTrades"), ["Closed (UTC)", "Account", "Market", "Side", { t: "Lots", hn: 1 }, { t: "Entry", hn: 1 }, { t: "Exit", hn: 1 }, { t: "Closed by", hn: 1 }, "Net"],
       list.map((t) => [t.close_utc, t.account, t.leg, t.side === "buy" ? "Buy" : "Sell", t.lots.toFixed(2), String(t.entry), String(t.exit), t.by === "hand" ? t.how + " (opened by hand)" : t.how, colored("span", t.net, sgn(t.net))]), [0, 0, 0, 0, 1, 1, 1, 0, 1]);
   }
-  for (const id of ["pfPeriod", "pfAcct", "pfFrom", "pfTo"]) $(id).addEventListener("change", () => { store.set(id, $(id).value); render(); });
+  for (const id of ["pfPeriod", "pfAcct", "pfMkt", "pfFrom", "pfTo"]) $(id).addEventListener("change", () => { store.set(id, $(id).value); render(); });
   $("pfSearch").addEventListener("input", () => renderPerf());
-  for (const id of ["pfPeriod", "pfFrom", "pfTo"]) { const v = store.get(id); if (v) $(id).value = v; }
+  for (const id of ["pfPeriod", "pfMkt", "pfFrom", "pfTo"]) { const v = store.get(id); if (v) $(id).value = v; }
 
   /* Backtests: web\backtests.json on the PC (backtests_export.py: the Gauntlet's registry and the June lab's candidates), sent encrypted. */
   let bkDrawn = "";
