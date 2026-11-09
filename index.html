@@ -289,7 +289,8 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     const sum = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
     const all = rows.flatMap((r) => r.open || []), noStop = all.filter((o) => o.sl_pl === null || o.sl_pl === undefined).length;
     const tsum = (k) => all.reduce((a, o) => a + (Number(o[k]) || 0), 0);
-    const tiles = [["Accounts", rows.length], ["Running", run + " / " + rows.length], ["Live", live + (dry ? " (" + dry + " dry)" : "")], ["Algo on", algo + " / " + rows.length], ["In a trade", inTrade], ["Need you", probs.length],
+    const accts = rows.filter((r) => !r.same_as).length;
+    const tiles = [["Accounts", accts + (accts !== rows.length ? " (" + rows.length + " charts)" : "")], ["Running", run + " / " + rows.length], ["Live", live + (dry ? " (" + dry + " dry)" : "")], ["Algo on", algo + " / " + rows.length], ["In a trade", inTrade], ["Need you", probs.length],
       ["Balance", money(sum("balance"))], ["Equity", money(sum("equity"))], ["Floating", pl(sum("floating"))], ["Today closed", pl(sum("today"))],
       ["Equity at risk now", all.length ? money(tsum("at_risk")) + (noStop ? " + " + noStop + " with no stop" : "") : "-"],
       ["If all stops hit", all.length ? pl(tsum("sl_pl")) : "-"], ["If all targets hit", all.length ? pl(tsum("tp_pl")) : "-"]];
@@ -310,10 +311,16 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
         ch.append(r.algo ? chip("Algo on", "good") : chip("Algo OFF", "bad"));
         if (r.connected === false) ch.append(chip("not connected", "bad"));
         if (r.held) ch.append(chip("HELD", "bad"));
-        ch.append(busy ? chip((r.open || []).length + " open" + ((r.orders || []).length ? ", " + r.orders.length + " pending" : ""), "info") : chip("flat"));
+        ch.append(r.same_as ? chip("shares an account") : busy ? chip((r.open || []).length + " open" + ((r.orders || []).length ? ", " + r.orders.length + " pending" : ""), "info") : chip("flat"));
       }
-      ch.append(chip(r.ea || "")); c.append(ch);
+      ch.append(chip(r.ea || "")); for (const x of r.also || []) ch.append(chip("+ " + (x.ea || "") + " chart", "info")); c.append(ch);
       if (r.strategy) c.append(el("div", "strat", r.strategy));
+      if (r.same_as) {                                              /* a second EA's chart on an account shown on its own card */
+        c.append(el("div", "note", "Same MT5 account as " + r.same_as + ": its balance, open trades and orders are on that card and counted once."));
+        if ((r.problems || []).length) { const ul = el("ul", "prob"); for (const x of r.problems) ul.append(el("li", "", x)); c.append(ul); }
+        if (r.note) c.append(el("div", "note", r.note));
+        g.append(c); continue;
+      }
       const n = el("div", "nums");
       const cell = (k, v) => { const d = el("div", "", k); const bb = el("b"); if (v instanceof Node) bb.append(v); else bb.textContent = v; d.append(bb); return d; };
       n.append(cell("Balance", money(r.balance)), cell("Equity", money(r.equity)), cell("Today closed", r.today === null || r.today === undefined ? "-" : pl(r.today))); c.append(n);
@@ -368,7 +375,7 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
         tb.append(hr);
         for (const row of s.table.rows || []) {
           const tr = el("tr"); for (const c of row) tr.append(el("td", "", c));
-          const r = byName[row[0]];
+          const r = byName[row[0]] && byName[row[0]].same_as ? Object.assign({}, byName[byName[row[0]].same_as] || {}, { mode: byName[row[0]].mode, terminal: byName[row[0]].terminal, problems: byName[row[0]].problems }) : byName[row[0]];
           if (live) {
             const td = el("td", "now");
             if (r) {
