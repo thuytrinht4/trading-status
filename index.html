@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.github.com https://gist.githubusercontent.com 'self'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.github.com https://gist.githubusercontent.com 'self'; img-src data:; base-uri 'none'; form-action 'none'">
 <title>Trading Status</title>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--ink:#16181d;--mute:#5d6470;--line:#e2e5ea;--good:#137a3f;--goodbg:#e3f4ea;--bad:#b42318;--badbg:#fdecea;--warn:#8a5a00;--warnbg:#fff4d6;--info:#1d4ed8;--infobg:#e6eeff;--chip:#eef0f3}
@@ -92,7 +92,7 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
 <main id="app" class="hidden">
   <header><h1>Trading Status</h1><span class="age" id="age"></span><button id="refresh">Refresh</button><button id="lockbtn">Lock</button></header>
   <div id="banner"></div>
-  <nav class="tabs" role="tablist"><button id="tabStatus" role="tab" aria-selected="true">Status</button><button id="tabToday" role="tab" aria-selected="false">Today</button><button id="tabPlan" role="tab" aria-selected="false">Week plan</button><button id="tabPerf" role="tab" aria-selected="false">Performance</button><button id="tabBack" role="tab" aria-selected="false">Backtests</button></nav>
+  <nav class="tabs" role="tablist"><button id="tabStatus" role="tab" aria-selected="true">Status</button><button id="tabToday" role="tab" aria-selected="false">Today</button><button id="tabPlan" role="tab" aria-selected="false">Week plan</button><button id="tabPerf" role="tab" aria-selected="false">Performance</button><button id="tabBack" role="tab" aria-selected="false">Backtests</button><button id="tabLab" role="tab" aria-selected="false">Lab</button></nav>
   <section id="viewStatus">
   <div class="tiles" id="tiles"></div>
   <div id="issues"></div>
@@ -127,6 +127,10 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       <div class="ctl"><input type="search" id="pfSearch" placeholder="Search account, market, how it closed" aria-label="Search trades"></div>
       <div class="tw scroll" id="pfTrades"></div></div>
     <p class="meta" style="color:var(--mute);font-size:12px">Closed trades only, by the UTC day each one closed; net includes swap and commission. Read from each terminal's own history at every upload; a closed terminal's history is missing until it runs again.</p>
+  </section>
+  <section id="viewLab" class="hidden">
+    <p class="lede">The lab's gold strategies on every bar since 2022 with your real trades beside them (LIVE, in pink): the Backtest Chart lab page, refreshed every evening after the edge check. Pick a strategy at the top, click a candle or a History row to inspect a trade.</p>
+    <iframe id="labFrame" title="Lab chart" style="width:100%;height:calc(100vh - 170px);min-height:620px;border:1px solid var(--line);border-radius:10px;background:#131722"></iframe>
   </section>
   <section id="viewBack" class="hidden">
     <p class="lede" id="bkLede"></p>
@@ -264,7 +268,7 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     }
   }
   function showLock(msg) { $("lock").classList.remove("hidden"); $("app").classList.add("hidden"); $("err").textContent = msg || ""; $("pass").focus(); }
-  function showApp() { $("lock").classList.add("hidden"); $("app").classList.remove("hidden"); }
+  function showApp() { $("lock").classList.add("hidden"); $("app").classList.remove("hidden"); if (typeof labKey === "function" && $("labFrame").src) labKey(); }
   async function unlock() {
     const pass = $("pass").value; if (!pass) return; $("err").textContent = "Opening...";
     try {
@@ -413,8 +417,12 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       for (const t of s.after || []) v.append(el("p", "", t));
     }
   }
-  const TABS = { status: ["tabStatus", "viewStatus"], today: ["tabToday", "viewToday"], plan: ["tabPlan", "viewPlan"], performance: ["tabPerf", "viewPerf"], backtests: ["tabBack", "viewBack"] };
+  const TABS = { status: ["tabStatus", "viewStatus"], today: ["tabToday", "viewToday"], plan: ["tabPlan", "viewPlan"], performance: ["tabPerf", "viewPerf"], backtests: ["tabBack", "viewBack"], lab: ["tabLab", "viewLab"] };
+  /* The Lab tab: lab.html (same site) in a frame, loaded the first time the tab opens; it gets this page's key, so one passphrase opens both. */
+  const labKey = () => { const f = $("labFrame"); if (key && f.contentWindow) f.contentWindow.postMessage({ type: "ts-key", key: b64(key) }, location.origin); };
+  window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data && e.data.type === "ts-lab-ready") labKey(); });
   function showTab(name) {
+    if (name === "lab" && !$("labFrame").src) { $("labFrame").addEventListener("load", labKey); $("labFrame").src = "lab.html"; }
     for (const [k, [b, s]] of Object.entries(TABS)) { $(s).classList.toggle("hidden", k !== name); $(b).setAttribute("aria-selected", k === name ? "true" : "false"); }
     store.set("tab", name);
   }
