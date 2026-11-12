@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src https://gist.githubusercontent.com https://api.github.com; img-src data:; base-uri 'none'; form-action 'none'">
+  <title>Lab · Trading Status</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .lab-tag { color: #a78bfa; border: 1px solid #a78bfa; padding: 0 5px; font-size: 11px; white-space: nowrap; }
+    .glabel.sub { font-size: 10px; }
+    #unlock { max-width: 360px; margin: 10vh auto; color: #ddd; font: 14px system-ui, sans-serif; }
+    #unlock input { width: 100%; padding: 8px; margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <!-- The lab chart of the Backtest Chart app (PropHedgeEA\BacktestChart\lab.html), on the status website. Its data, refreshed every
+       evening by WeekSetup\lab_nightly.py, is the gist's lab.enc.json, decrypted here with the status page's key: the page itself
+       holds no data. -->
+  <div id="unlock" hidden>
+    <p>Enter the status website's passphrase to open the lab.</p>
+    <input id="lpass" type="password" placeholder="passphrase" aria-label="Passphrase"><button id="lgo">Open</button>
+    <p id="lerr"></p>
+  </div>
+  <header class="toolbar">
+    <span class="lab-tag" id="labtag" title="Exness M5 XAUUSD bid bars with the recorded spread, walked by the lab's own research code (C:\MTLab\research\r8), refreshed every evening">LAB M5</span>
+    <div class="group" role="group" aria-label="Timeframe">
+      <button data-tf="M15" class="tf" title="Key 1">M15</button>
+      <button data-tf="H1" class="tf active" title="Key 2">H1</button>
+      <button data-tf="H4" class="tf" title="Key 3">H4</button>
+      <button data-tf="D1" class="tf" title="Key 4">D1</button>
+    </div>
+    <div class="group" id="strategies" role="group" aria-label="Strategy"></div>
+    <label class="group">Period
+      <select id="period"></select>
+    </label>
+    <label class="group">Risk %
+      <input id="risk" type="number" min="0.05" max="10" step="0.05" value="1.0">
+    </label>
+    <label class="group">Account $
+      <input id="account" type="number" min="1000" step="1000" value="10000">
+    </label>
+    <div class="group nav">
+      <button id="prev" title="Previous trade (P)">◀ trade</button>
+      <button id="next" title="Next trade (N)">trade ▶</button>
+    </div>
+    <div id="audit" class="audit"></div>
+  </header>
+
+  <main class="workspace">
+    <section class="chart-wrap">
+      <div id="caption" class="caption"></div>
+      <div id="chart" class="chart"></div>
+      <div id="loading" class="loading">Loading the lab's bars and trades…</div>
+    </section>
+    <aside class="datawindow" aria-label="Data window">
+      <h2>Data window</h2>
+      <div id="dw"></div>
+    </aside>
+  </main>
+
+  <section class="toolbox">
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="perf" role="tab">Performance</button>
+      <button class="tab" data-tab="history" role="tab">History</button>
+      <button class="tab" data-tab="days" role="tab">Days without a trade</button>
+      <button class="tab" data-tab="portfolio" role="tab">Portfolio (gold + BTC)</button>
+      <button class="tab" data-tab="instant" role="tab">Instant account (Atlas)</button>
+      <button class="tab" data-tab="about" role="tab">About</button>
+    </nav>
+    <div class="panel active" id="panel-perf"></div>
+    <div class="panel" id="panel-history"></div>
+    <div class="panel" id="panel-days"></div>
+    <div class="panel" id="panel-portfolio"></div>
+    <div class="panel" id="panel-instant"></div>
+    <div class="panel" id="panel-about"></div>
+  </section>
+
+  <footer class="status" id="status">1 / 2 / 3 / 4 timeframe · N / P next / previous trade · Esc deselect · ← → scroll (Shift for a screen) · click a candle or a History row to inspect a trade · LIVE = your accounts' real gold trades</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+  <script>
+  (() => {
+    const GIST = "956cc4f04b8c7e434b5005738ff8d8b5", OWNER = "thuytrinht4", FILE = "lab.enc.json";
+    const te = new TextEncoder(), bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+    const store = { get(k) { try { return localStorage.getItem("ts." + k); } catch (e) { return null; } } };
+    const loading = document.getElementById("loading"), say = (t) => { loading.textContent = t; };
+  const gunzip = (() => {
+    function Tree() { this.table = new Uint16Array(16); this.trans = new Uint16Array(288); }
+    const sltree = new Tree(), sdtree = new Tree(), codeTree = new Tree(), lengths = new Uint8Array(288 + 32), offs = new Uint16Array(16);
+    const lengthBits = new Uint8Array(30), lengthBase = new Uint16Array(30), distBits = new Uint8Array(30), distBase = new Uint16Array(30);
+    const clcidx = new Uint8Array([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+    function bitsBase(bits, base, delta, first) {
+      let i, sum; for (i = 0; i < delta; ++i) bits[i] = 0; for (i = 0; i < 30 - delta; ++i) bits[i + delta] = (i / delta) | 0;
+      for (sum = first, i = 0; i < 30; ++i) { base[i] = sum; sum += 1 << bits[i]; }
+    }
+    function fixedTrees(lt, dt) {
+      let i; for (i = 0; i < 7; ++i) lt.table[i] = 0; lt.table[7] = 24; lt.table[8] = 152; lt.table[9] = 112;
+      for (i = 0; i < 24; ++i) lt.trans[i] = 256 + i; for (i = 0; i < 144; ++i) lt.trans[24 + i] = i;
+      for (i = 0; i < 8; ++i) lt.trans[24 + 144 + i] = 280 + i; for (i = 0; i < 112; ++i) lt.trans[24 + 144 + 8 + i] = 144 + i;
+      for (i = 0; i < 5; ++i) dt.table[i] = 0; dt.table[5] = 32; for (i = 0; i < 32; ++i) dt.trans[i] = i;
+    }
+    function buildTree(t, lens, off, num) {
+      let i, sum; for (i = 0; i < 16; ++i) t.table[i] = 0; for (i = 0; i < num; ++i) t.table[lens[off + i]]++; t.table[0] = 0;
+      for (sum = 0, i = 0; i < 16; ++i) { offs[i] = sum; sum += t.table[i]; }
+      for (i = 0; i < num; ++i) if (lens[off + i]) t.trans[offs[lens[off + i]]++] = i;
+    }
+    function getBit(d) { if (!d.bitcount--) { d.tag = d.source[d.sourceIndex++]; d.bitcount = 7; } const b = d.tag & 1; d.tag >>>= 1; return b; }
+    function readBits(d, num, base) {
+      if (!num) return base; while (d.bitcount < 24) { d.tag |= d.source[d.sourceIndex++] << d.bitcount; d.bitcount += 8; }
+      const v = d.tag & (0xffff >>> (16 - num)); d.tag >>>= num; d.bitcount -= num; return v + base;
+    }
+    function decodeSym(d, t) {
+      while (d.bitcount < 24) { d.tag |= d.source[d.sourceIndex++] << d.bitcount; d.bitcount += 8; }
+      let sum = 0, cur = 0, len = 0, tag = d.tag;
+      do { cur = 2 * cur + (tag & 1); tag >>>= 1; ++len; sum += t.table[len]; cur -= t.table[len]; } while (cur >= 0);
+      d.tag = tag; d.bitcount -= len; return t.trans[sum + cur];
+    }
+    function decodeTrees(d, lt, dt) {
+      const hlit = readBits(d, 5, 257), hdist = readBits(d, 5, 1), hclen = readBits(d, 4, 4); let i, num, n;
+      for (i = 0; i < 19; ++i) lengths[i] = 0; for (i = 0; i < hclen; ++i) lengths[clcidx[i]] = readBits(d, 3, 0);
+      buildTree(codeTree, lengths, 0, 19);
+      for (num = 0; num < hlit + hdist; ) {
+        const sym = decodeSym(d, codeTree);
+        if (sym === 16) { const prev = lengths[num - 1]; for (n = readBits(d, 2, 3); n; --n) lengths[num++] = prev; }
+        else if (sym === 17) { for (n = readBits(d, 3, 3); n; --n) lengths[num++] = 0; }
+        else if (sym === 18) { for (n = readBits(d, 7, 11); n; --n) lengths[num++] = 0; }
+        else lengths[num++] = sym;
+      }
+      buildTree(lt, lengths, 0, hlit); buildTree(dt, lengths, hlit, hdist);
+    }
+    function blockData(d, lt, dt) {
+      for (;;) {
+        let sym = decodeSym(d, lt); if (sym === 256) return;
+        if (sym < 256) { d.dest[d.destLen++] = sym; continue; }
+        sym -= 257; const length = readBits(d, lengthBits[sym], lengthBase[sym]), dist = decodeSym(d, dt);
+        const from = d.destLen - readBits(d, distBits[dist], distBase[dist]);
+        for (let i = from; i < from + length; ++i) d.dest[d.destLen++] = d.dest[i];
+      }
+    }
+    function stored(d) {
+      while (d.bitcount > 8) { d.sourceIndex--; d.bitcount -= 8; }
+      const len = d.source[d.sourceIndex] | (d.source[d.sourceIndex + 1] << 8), inv = d.source[d.sourceIndex + 2] | (d.source[d.sourceIndex + 3] << 8);
+      if (len !== (~inv & 0xffff)) throw new Error("the data is damaged (stored block)");
+      d.sourceIndex += 4; for (let i = len; i; --i) d.dest[d.destLen++] = d.source[d.sourceIndex++]; d.bitcount = 0;
+    }
+    fixedTrees(sltree, sdtree); bitsBase(lengthBits, lengthBase, 4, 3); bitsBase(distBits, distBase, 2, 1); lengthBits[28] = 0; lengthBase[28] = 258;
+    return (u) => {
+      if (u[0] !== 0x1f || u[1] !== 0x8b || u[2] !== 8) throw new Error("the data isn't gzip");
+      const flg = u[3]; let p = 10;
+      if (flg & 4) p += 2 + (u[p] | (u[p + 1] << 8)); if (flg & 8) { while (u[p++]); } if (flg & 16) { while (u[p++]); } if (flg & 2) p += 2;
+      const n = (u[u.length - 4] | (u[u.length - 3] << 8) | (u[u.length - 2] << 16) | (u[u.length - 1] << 24)) >>> 0;
+      const d = { source: u.subarray(p, u.length - 8), sourceIndex: 0, tag: 0, bitcount: 0, dest: new Uint8Array(n), destLen: 0, lt: new Tree(), dt: new Tree() };
+      let last;
+      do {
+        last = getBit(d); const type = readBits(d, 2, 0);
+        if (type === 0) stored(d); else if (type === 1) blockData(d, sltree, sdtree); else if (type === 2) { decodeTrees(d, d.lt, d.dt); blockData(d, d.lt, d.dt); } else throw new Error("the data is damaged");
+      } while (!last);
+      if (d.destLen !== n) throw new Error("the data is damaged (length)");
+      return d.dest;
+    };
+  })();
+    let env = null, started = false;
+    async function fetchEnv() {
+      const r = GIST ? await fetch("https://gist.githubusercontent.com/" + OWNER + "/" + GIST + "/raw/" + FILE + "?t=" + Date.now(), { cache: "no-store", credentials: "omit" })
+                     : await fetch(FILE + "?t=" + Date.now(), { cache: "no-store" });                 // a local test copy (no gist): the file beside the page
+      if (!r.ok) throw new Error("the lab file isn't there yet (" + r.status + "): it is uploaded every evening");
+      return JSON.parse(await r.text());
+    }
+    async function open(raw) {
+      const k = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+      const pt = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes(env.iv), additionalData: te.encode("pp:" + env.name) }, k, bytes(env.ct)));
+      const text = window.DecompressionStream ? await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream("gzip"))).text() : new TextDecoder().decode(gunzip(pt));
+      return JSON.parse(text);
+    }
+    async function start(raw) {
+      if (started) return; started = true;
+      try {
+        say("Decrypting the lab's bars and trades…");
+        window.LAB_BUNDLE = await open(raw);
+        document.getElementById("unlock").hidden = true;
+        const m = window.LAB_BUNDLE["meta.json"] || {};
+        document.getElementById("labtag").textContent = "LAB M5 " + (m.span ? m.span[0].slice(0, 4) + "–" + m.span[1] : "") + (m.live ? " · live to " + m.live.generated.slice(0, 10) : "");
+        const s = document.createElement("script"); s.src = "lab.js?v=" + encodeURIComponent((m.live && m.live.generated) || ""); document.body.append(s);
+      } catch (x) { started = false; say(x && x.name === "OperationError" ? "That key doesn't open the lab file." : "The lab couldn't open: " + (x.message || x)); }
+    }
+    async function keyFromPass(pass) {
+      const base = await crypto.subtle.importKey("raw", te.encode(pass.trim().normalize("NFC")), "PBKDF2", false, ["deriveBits"]);
+      return new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: bytes(env.salt), iterations: env.iter }, base, 256));
+    }
+    // the status page (same site) hands over its key when it shows this page in its Lab tab
+    window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data && e.data.type === "ts-key" && env) start(bytes(e.data.key)); });
+    (async () => {
+      try {
+        if (!window.crypto || !crypto.subtle) throw new Error("this browser can't decrypt (open the https address in Chrome, Safari or Edge)");
+        say("Fetching the lab's bars and trades (a few MB)…"); env = await fetchEnv();
+        const saved = store.get("key." + env.salt);
+        if (saved) return start(bytes(saved));
+        if (window.parent !== window) { window.parent.postMessage({ type: "ts-lab-ready" }, location.origin); say("Waiting for the status page's key…"); return; }
+        document.getElementById("unlock").hidden = false; say("");
+        const go = async () => { try { start(await keyFromPass(document.getElementById("lpass").value)); } catch (x) { document.getElementById("lerr").textContent = String(x.message || x); } };
+        document.getElementById("lgo").onclick = go; document.getElementById("lpass").onkeydown = (e) => { if (e.key === "Enter") go(); };
+      } catch (x) { say("The lab couldn't load: " + (x.message || x)); }
+    })();
+  })();
+  </script>
+</body>
+</html>
