@@ -41,6 +41,7 @@ button:hover{border-color:var(--mute)}
 .pos{font-size:13px;border-top:1px dashed var(--line);padding-top:6px;font-variant-numeric:tabular-nums}
 .pos div{display:flex;justify-content:space-between;gap:8px}
 .note{font-size:12px;color:var(--mute);overflow-wrap:anywhere}
+#firstpay h2{font-size:14px;margin:14px 0 4px}
 .prob{font-size:13px;color:var(--bad);margin:0;padding-left:16px}
 .pl{font-weight:650}.up{color:var(--good)}.down{color:var(--bad)}
 #lock{max-width:380px;margin:12vh auto 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
@@ -96,6 +97,7 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
   <section id="viewStatus">
   <div class="tiles" id="tiles"></div>
   <div id="issues"></div>
+  <div id="firstpay"></div>
   <div class="bar"><label><input type="checkbox" id="onlyIssues"> Only accounts that need you or have a trade on</label></div>
   <div class="grid" id="grid"></div>
   </section>
@@ -320,6 +322,24 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     const is = $("issues"); is.textContent = "";
     if (probs.length) { const box = el("div", "issues"); box.append(el("h2", "", probs.length + " need you")); const ul = el("ul"); for (const r of probs) ul.append(el("li", "", r.name + ": " + r.problems.join("; "))); box.append(ul); is.append(box); }
     else if (age <= (data.stale_after_s || 420)) { const g = el("div", "banner good", "All " + rows.length + " accounts OK."); is.append(g); }
+    /* The least profit from here to each account's FIRST payout (payout_rules.py), ranked by its share of the balance now: an
+       evaluation counts the rest of this step, the later steps and the funded account's minimum payout. */
+    const fp = $("firstpay"); fp.textContent = "";
+    const rk = rows.filter((r) => !r.same_as && r.progress && r.progress.first_payout && r.progress.first_payout.pct !== null).sort((a, b) => a.progress.first_payout.pct - b.progress.first_payout.pct);
+    if (rk.length) {
+      fp.append(el("h2", "", "Profit to the first payout, least first"));
+      const w = el("div", "tw"), tb = el("table"), hr = el("tr");
+      for (const [h, c] of [["#", "r"], ["Account", ""], ["Needed", "r"], ["% bal.", "r"]]) hr.append(el("th", c, h));
+      tb.append(hr);
+      rk.forEach((r, i) => {
+        const F = r.progress.first_payout, tr = el("tr"), acc = el("td");
+        acc.append(el("div", "", r.name), el("div", "sm", F.parts.filter((p) => p[1] > 0).map((p) => p[0] + " $" + money(p[1])).join(" + ") || "the payout line is reached"));
+        if (F.why) acc.title = F.why;
+        tr.append(el("td", "r", String(i + 1)), acc, el("td", "r", F.usd > 0 ? "$" + money(F.usd) : "met"), el("td", "r", F.pct.toFixed(2) + "%")); tb.append(tr);
+      });
+      w.append(tb); fp.append(w);
+      fp.append(el("div", "note", "The least money from the balance now, with no losing trades. Days rules still apply: see each card. Funded minimums: Atlas $100 (2-Step assumed), The5ers $500 on 100K, E8 1 % of the size."));
+    }
     const only = $("onlyIssues").checked, g = $("grid"); g.textContent = "";
     for (const r of rows) {
       const busy = (r.open || []).length || (r.orders || []).length; if (only && !busy && !(r.problems || []).length) continue;
