@@ -355,11 +355,12 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
           n3.append(cell("Target balance", money(P.goal)));
         } else {
           n3.append(cell("To payout request", P.left > 0 ? money(P.left) : ok("reached", true)));
-          n3.append(cell(P.window ? "Next window" : "Payout balance", P.window ? new Date(P.window + "T00:00:00Z").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : money(P.goal)));
+          const wd = P.window ? new Date(P.window + "T00:00:00Z").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : "";
+          n3.append(cell("Payout window", P.window ? (P.window_open ? ok("open since " + wd, true) : "opens " + wd) : money(P.goal)));
         }
         c.append(n3);
         if (P.kind === "payout") {
-          const why = [P.best_pct ? "the best day " + money(P.best_day) + " may be at most " + P.best_pct + "% of the profit" : "", P.buffer_pct ? "a " + P.buffer_pct + "% buffer that stays" : "", "$" + P.min_usd + " minimum"].filter(Boolean).join(", ");
+          const why = [P.best_pct ? "the best day " + money(P.best_day) + " may be at most " + P.best_pct + "% of the profit" : "", P.buffer_pct ? "a " + P.buffer_pct + "% buffer that stays" : "", "$" + P.min_usd + " minimum", P.cap ? "at most " + money(P.cap) + " a payout" : ""].filter(Boolean).join(", ");
           c.append(el("div", "note", (P.ready ? "Payout rules met: request it with the book flat. " : "") + "Withdrawal from balance " + money(P.goal) + " (" + why + ")."));
         } else if (P.left <= 0 && P.days >= P.days_need) c.append(el("div", "note", "Step " + P.step + " met on closed balance."));
       }
