@@ -41,7 +41,7 @@ button:hover{border-color:var(--mute)}
 .pos{font-size:13px;border-top:1px dashed var(--line);padding-top:6px;font-variant-numeric:tabular-nums}
 .pos div{display:flex;justify-content:space-between;gap:8px}
 .note{font-size:12px;color:var(--mute);overflow-wrap:anywhere}
-#firstpay h2{font-size:14px;margin:14px 0 4px}
+#firstpay .note{padding:6px 10px}
 .prob{font-size:13px;color:var(--bad);margin:0;padding-left:16px}
 .pl{font-weight:650}.up{color:var(--good)}.down{color:var(--bad)}
 #lock{max-width:380px;margin:12vh auto 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
@@ -97,7 +97,6 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
   <section id="viewStatus">
   <div class="tiles" id="tiles"></div>
   <div id="issues"></div>
-  <div id="firstpay"></div>
   <div class="bar"><label><input type="checkbox" id="onlyIssues"> Only accounts that need you or have a trade on</label></div>
   <div class="grid" id="grid"></div>
   </section>
@@ -125,6 +124,8 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
     <div class="charts" style="margin-top:12px">
       <div class="sec" style="margin:0"><h3>Opened by</h3><p class="sub">The EAs against trades opened by hand, in the period.</p><div class="tw" id="pfBy"></div></div>
     </div>
+    <div class="sec" id="firstpaySec"><h3>Profit to the first payout, least first</h3><p class="sub">The least profit from the balance now to each account's first payout, ranked by its share of the balance. Not affected by the period, account or market filters above.</p>
+      <div class="tw" id="firstpay"></div></div>
     <div class="sec"><h3>Closed trades</h3><p class="sub" id="pfTradeSub"></p>
       <div class="ctl"><input type="search" id="pfSearch" placeholder="Search account, market, how it closed" aria-label="Search trades"></div>
       <div class="tw scroll" id="pfTrades"></div></div>
@@ -326,9 +327,9 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
        evaluation counts the rest of this step, the later steps and the funded account's minimum payout. */
     const fp = $("firstpay"); fp.textContent = "";
     const rk = rows.filter((r) => !r.same_as && r.progress && r.progress.first_payout && r.progress.first_payout.pct !== null).sort((a, b) => a.progress.first_payout.pct - b.progress.first_payout.pct);
+    $("firstpaySec").classList.toggle("hidden", !rk.length);
     if (rk.length) {
-      fp.append(el("h2", "", "Profit to the first payout, least first"));
-      const w = el("div", "tw"), tb = el("table"), hr = el("tr");
+      const tb = el("table"), hr = el("tr");
       for (const [h, c] of [["#", "r"], ["Account", ""], ["Needed", "r"], ["% bal.", "r"]]) hr.append(el("th", c, h));
       tb.append(hr);
       rk.forEach((r, i) => {
@@ -337,8 +338,8 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
         if (F.why) acc.title = F.why;
         tr.append(el("td", "r", String(i + 1)), acc, el("td", "r", F.usd > 0 ? "$" + money(F.usd) : "met"), el("td", "r", F.pct.toFixed(2) + "%")); tb.append(tr);
       });
-      w.append(tb); fp.append(w);
-      fp.append(el("div", "note", "The least money from the balance now, with no losing trades. Days rules still apply: see each card. Funded minimums: Atlas $100 (2-Step assumed), The5ers $500 on 100K, E8 1 % of the size."));
+      fp.append(tb);
+      fp.append(el("div", "note","The least money from the balance now, with no losing trades. Days rules still apply: see each card. Funded minimums: Atlas $100 (2-Step assumed), The5ers $500 on 100K, E8 1 % of the size."));
     }
     const only = $("onlyIssues").checked, g = $("grid"); g.textContent = "";
     for (const r of rows) {
