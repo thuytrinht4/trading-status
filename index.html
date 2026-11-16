@@ -345,6 +345,24 @@ footer{color:var(--mute);font-size:12px;margin-top:18px}
       const n = el("div", "nums");
       const cell = (k, v) => { const d = el("div", "", k); const bb = el("b"); if (v instanceof Node) bb.append(v); else bb.textContent = v; d.append(bb); return d; };
       n.append(cell("Balance", money(r.balance)), cell("Equity", money(r.equity)), cell("Today closed", r.today === null || r.today === undefined ? "-" : pl(r.today))); c.append(n);
+      const P = r.progress;                                        /* payout_rules.py: minimum days and the money to the target or a withdrawal */
+      if (P) {
+        const n3 = el("div", "nums"), ok = (t, good) => el("span", "pl " + (good ? "up" : ""), t);
+        const dk = (P.day_kind === "profitable days" ? "Profit days" : "Trading days") + (P.day_min ? " (≥ " + money(P.day_min) + ")" : "");
+        n3.append(cell(dk, P.days_need ? ok(P.days + " / " + P.days_need, P.days >= P.days_need) : P.days + " · none needed"));
+        if (P.kind === "target") {
+          n3.append(cell("To target" + (P.steps > 1 ? " (step " + P.step + ", +" + P.target_pct + "%)" : " (+" + P.target_pct + "%)"), P.left > 0 ? money(P.left) : ok("reached", true)));
+          n3.append(cell("Target balance", money(P.goal)));
+        } else {
+          n3.append(cell("To payout request", P.left > 0 ? money(P.left) : ok("reached", true)));
+          n3.append(cell(P.window ? "Next window" : "Payout balance", P.window ? new Date(P.window + "T00:00:00Z").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : money(P.goal)));
+        }
+        c.append(n3);
+        if (P.kind === "payout") {
+          const why = [P.best_pct ? "the best day " + money(P.best_day) + " may be at most " + P.best_pct + "% of the profit" : "", P.buffer_pct ? "a " + P.buffer_pct + "% buffer that stays" : "", "$" + P.min_usd + " minimum"].filter(Boolean).join(", ");
+          c.append(el("div", "note", (P.ready ? "Payout rules met: request it with the book flat. " : "") + "Withdrawal from balance " + money(P.goal) + " (" + why + ")."));
+        } else if (P.left <= 0 && P.days >= P.days_need) c.append(el("div", "note", "Step " + P.step + " met on closed balance."));
+      }
       const op = r.open || [], pct = (v) => r.balance ? " (" + (100 * v / r.balance).toFixed(2) + "%)" : "";
       if (op.length) {
         const s = (k) => op.reduce((a, o) => a + (Number(o[k]) || 0), 0), bare = op.some((o) => o.sl_pl === null || o.sl_pl === undefined);
