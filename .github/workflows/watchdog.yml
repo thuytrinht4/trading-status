@@ -1,0 +1,34 @@
+# Off-PC watchdog: Telegram when the trading PC stops reporting (see .github/watchdog.py). Secrets TG_TOKEN and TG_CHAT.
+name: watchdog
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the PC's heartbeat
+        env:
+          BEAT_URL: https://gist.githubusercontent.com/thuytrinht4/956cc4f04b8c7e434b5005738ff8d8b5/raw/beat.txt
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+        run: |
+          W=refs/remotes/origin/watchdog
+          git fetch -q origin "+refs/heads/watchdog:$W" 2>/dev/null || true
+          git show "$W:state.json" > /tmp/state.json 2>/dev/null || echo '{}' > /tmp/state.json
+          cp /tmp/state.json /tmp/before.json
+          python3 .github/watchdog.py /tmp/state.json
+          if cmp -s /tmp/before.json /tmp/state.json; then exit 0; fi
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          blob=$(git hash-object -w /tmp/state.json); tree=$(printf '100644 blob %s\tstate.json\n' "$blob" | git mktree)
+          parent=""; if git rev-parse -q --verify "$W" >/dev/null; then parent="-p $W"; fi
+          commit=$(git commit-tree "$tree" $parent -m "watchdog state")
+          git push -q origin "$commit:refs/heads/watchdog"
